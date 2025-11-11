@@ -12,6 +12,20 @@ cd frontend-react-src
 echo "FE 의존성 설치 (npm install)..."
 npm install
 
+# =======================================================
+# 💡 추가/수정할 부분 💡
+# 템플릿 파일을 복사하여 .env 파일을 생성합니다.
+TEMPLATE_FILE=".env.template"  # 실제 템플릿 파일명으로 변경하세요
+TARGET_ENV_FILE=".env"
+
+if [ ! -f $TARGET_ENV_FILE ]; then
+    echo "템플릿 파일 ($TEMPLATE_FILE)을 복사하여 $TARGET_ENV_FILE 생성..."
+    cp $TEMPLATE_FILE $TARGET_ENV_FILE
+else
+    echo "$TARGET_ENV_FILE 파일이 이미 존재합니다. 복사 단계를 건너뜁니다."
+fi
+# =======================================================
+
 echo "FE 빌드 (npm run build)..."
 npm run build
 
