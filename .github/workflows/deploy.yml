@@ -26,3 +26,16 @@ jobs:
       # Dockerfile 내에서 multi-stage 빌드를 수행하므로 별도 FE 빌드 불필요
       - name: Build Docker image
         run: docker build -t image-post:latest . # Dockerfile 기반 이미지 빌드
+
+      - name: Set environment variables for tagging
+        run: |
+          echo "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com" >> $GITHUB_ENV
+          echo "ECR_REPOSITORY=image-post" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$(date +'%Y%m%d%H%M%S')-${GITHUB_SHA::8}" >> $GITHUB_ENV
+    # 예: 20251025100000-a1b2c3d4
+
+      - name: Tag Docker image
+        run: |
+         docker tag image-post:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+         docker tag image-post:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+    # latest 태그도 추가
