@@ -1,8 +1,8 @@
 name: Deploy image-post to ECS
 
-on:
-  push:
-    branches: [ main ] # main 브랜치에 푸시될 때 실행
+#on:
+#  push:
+#    branches: [ main ] # main 브랜치에 푸시될 때 실행
 
 jobs:
   build:
@@ -39,3 +39,47 @@ jobs:
          docker tag image-post:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
          docker tag image-post:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
     # latest 태그도 추가
+
+      - name: Configure AWS credentials # 이미 설정된 경우 생략 가능
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Download task definition template # 기존 작업 정의 가져오기
+        run: |
+          aws ecs describe-task-definition --task-definition image-post-task --query taskDefinition > task-definition.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json # 다운로드한 파일 경로
+          container-name: image-post # 업데이트할 컨테이너 이름
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} # build job의 output 사용 (job 간 output 설정 필요)
+
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }} # 업데이트된 작업 정의 파일 경로
+          service: image-post-service # 실제 업데이트할 서비스 이름
+          cluster: image-post-cluster # 실제 클러스터 이름
+          wait-for-service-stability: true # 배포 안정화 대기 (권장)
+
+      - name: Verify deployment status
+        run: |
+          echo "Verifying deployment..." 
+          aws ecs wait services-stable --cluster image-post-cluster --services image-post-service
+          echo "✅ Deployment seems stable."
+        # image-post-service, image-post-cluster 는 실제 이름
